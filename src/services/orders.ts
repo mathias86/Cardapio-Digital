@@ -29,6 +29,7 @@ const trackingItemSchema = z.object({
   unit_price: databaseNumber,
   total_price: databaseNumber,
   notes: z.string().nullable(),
+  addons: z.array(z.object({ id: z.uuid().optional(), addon_name: z.string(), unit_price: databaseNumber, total_price: databaseNumber })).default([]),
 });
 
 const orderTrackingSchema = z.object({

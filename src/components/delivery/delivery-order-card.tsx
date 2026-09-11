@@ -144,7 +144,7 @@ export function DeliveryOrderCard({
               <div key={item.id}>
                 {index > 0 && <Separator className="mb-3" />}
                 <div className="flex justify-between gap-4 text-sm">
-                  <span><strong>{item.quantity}×</strong> {item.product_name}</span>
+                  <span><strong>{item.quantity}×</strong> {item.product_name}{item.addons.length > 0 && <small className="block text-muted-foreground">+ {item.addons.map((addon) => addon.addon_name).join(", ")}</small>}</span>
                   <span className="shrink-0">{formatCurrency(item.total_price)}</span>
                 </div>
                 {item.notes && <p className="mt-1 text-xs text-muted-foreground">Obs.: {item.notes}</p>}

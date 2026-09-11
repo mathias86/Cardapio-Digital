@@ -1,4 +1,4 @@
-import type { PaymentMethod, PaymentStatus } from "@/types/order";
+import type { OrderItemAddon, PaymentMethod, PaymentStatus } from "@/types/order";
 
 export type DeliveryOrderStatus = "READY" | "OUT_FOR_DELIVERY" | "DELIVERED";
 
@@ -9,6 +9,7 @@ export type DeliveryOrderItem = {
   unit_price: number;
   total_price: number;
   notes: string | null;
+  addons: OrderItemAddon[];
 };
 
 export type DeliveryOrder = {

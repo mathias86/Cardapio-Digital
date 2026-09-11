@@ -100,6 +100,7 @@ export function DeliveryPrintReceipt({ orderId }: { orderId: string }) {
                 <span>{item.quantity}x {item.product_name}</span>
                 <span>{formatCurrency(item.total_price)}</span>
               </div>
+              {item.addons.length > 0 && <p className="mt-1 text-xs">+ {item.addons.map((addon) => addon.addon_name).join(", ")}</p>}
               {item.notes && <p className="mt-1 border-l-4 border-black pl-2 text-xs font-bold">OBS: {item.notes}</p>}
             </div>
           ))}

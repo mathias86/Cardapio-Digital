@@ -19,6 +19,25 @@ export type MenuProduct = {
   image_url: string | null;
   stock_quantity: number | null;
   display_order: number;
+  addon_groups: MenuAddonGroup[];
+};
+
+export type MenuAddon = {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number;
+  display_order: number;
+};
+
+export type MenuAddonGroup = {
+  id: string;
+  name: string;
+  description: string | null;
+  min_selections: number;
+  max_selections: number;
+  display_order: number;
+  addons: MenuAddon[];
 };
 
 export type MenuCategory = {

@@ -88,6 +88,7 @@ export function KitchenPrintReceipt({ orderId }: { orderId: string }) {
               <p className="text-lg font-black leading-tight">
                 {item.quantity}x {item.product_name}
               </p>
+              {item.addons.length > 0 && <p className="mt-1 text-sm font-bold">+ {item.addons.map((addon) => addon.addon_name).join(", ")}</p>}
               {item.notes && (
                 <p className="mt-1 border-l-4 border-black pl-2 text-sm font-bold leading-5">
                   OBS: {item.notes}

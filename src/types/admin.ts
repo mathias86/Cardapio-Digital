@@ -1,4 +1,4 @@
-import type { DeliveryType, OrderStatus, PaymentMethod, PaymentStatus } from "@/types/order";
+import type { DeliveryType, OrderItemAddon, OrderStatus, PaymentMethod, PaymentStatus } from "@/types/order";
 
 export type AdminCategory = {
   id: string;
@@ -22,6 +22,9 @@ export type AdminProduct = {
   display_order: number;
   created_at: string;
 };
+
+export type AdminAddon = { id: string; group_id: string; name: string; description: string | null; price: number; active: boolean; display_order: number };
+export type AdminAddonGroup = { id: string; name: string; description: string | null; min_selections: number; max_selections: number; active: boolean; display_order: number; addons: AdminAddon[]; product_ids: string[] };
 
 export type AdminStoreSettings = {
   id: number;
@@ -62,6 +65,7 @@ export type AdminOrderItem = {
   unit_price: number;
   total_price: number;
   notes: string | null;
+  addons: OrderItemAddon[];
 };
 
 export type AdminOrder = AdminRecentOrder & {

@@ -132,6 +132,7 @@ export function TrackingView({ accessToken }: { accessToken: string }) {
                 <div className="flex justify-between gap-5">
                   <div>
                     <p className="font-semibold">{item.quantity}× {item.product_name}</p>
+                    {item.addons.length > 0 && <p className="mt-1 text-sm text-muted-foreground">+ {item.addons.map((addon) => addon.addon_name).join(", ")}</p>}
                     {item.notes && <p className="mt-1 text-sm text-muted-foreground">Obs.: {item.notes}</p>}
                   </div>
                   <span className="shrink-0 font-medium">{formatCurrency(item.total_price)}</span>

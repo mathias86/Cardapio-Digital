@@ -2,13 +2,15 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle, CreditCard, LoaderCircle, MapPin, ShoppingBag, Store, WalletCards } from "lucide-react";
+import { AlertCircle, CheckCircle2, Copy, CreditCard, LoaderCircle, MapPin, ShoppingBag, Store, WalletCards } from "lucide-react";
 import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 
 import { CartEmpty } from "@/components/cart/cart-empty";
+import { MercadoPagoCard } from "@/components/checkout/mercado-pago-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -21,9 +23,12 @@ import { createCheckoutSchema, type CheckoutFormValues } from "@/lib/validations
 import { createOrder } from "@/services/orders";
 import { getCartSubtotal, useCartStore } from "@/stores/cart-store";
 import type { StoreSettings } from "@/types/menu";
+import type { CreatedOrder, CreateOrderPayload } from "@/types/order";
 
 type CheckoutFormProps = {
   settings: StoreSettings;
+  mercadoPagoEnabled: boolean;
+  mercadoPagoPublicKey?: string;
 };
 
 const paymentOptions = [
@@ -36,12 +41,14 @@ function FieldError({ message }: { message?: string }) {
   return message ? <p className="text-xs text-destructive">{message}</p> : null;
 }
 
-export function CheckoutForm({ settings }: CheckoutFormProps) {
+export function CheckoutForm({ settings, mercadoPagoEnabled, mercadoPagoPublicKey }: CheckoutFormProps) {
   const router = useRouter();
   const hydrated = useCartHydrated();
   const items = useCartStore((state) => state.items);
   const clearCart = useCartStore((state) => state.clearCart);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
+  const [cardOrder, setCardOrder] = useState<{ order: CreatedOrder; email?: string } | null>(null);
+  const [pixResult, setPixResult] = useState<{ order: CreatedOrder; qr_code?: string; qr_code_base64?: string } | null>(null);
   const subtotal = getCartSubtotal(items);
   const schema = useMemo(
     () => createCheckoutSchema(subtotal, settings.delivery_fee),
@@ -60,7 +67,7 @@ export function CheckoutForm({ settings }: CheckoutFormProps) {
       address_neighborhood: "",
       address_complement: "",
       address_reference: "",
-      payment_method: "PIX",
+      payment_method: mercadoPagoEnabled ? "PIX" : "CASH",
       change_for: "",
       notes: "",
     },
@@ -84,7 +91,10 @@ export function CheckoutForm({ settings }: CheckoutFormProps) {
     setSubmissionError(null);
 
     try {
-      const order = await createOrder({
+      if (values.payment_method !== "CASH" && !mercadoPagoEnabled) {
+        throw new Error("O pagamento online ainda não foi ativado pela loja. Escolha dinheiro ou tente mais tarde.");
+      }
+      const payload: CreateOrderPayload = {
         customer_name: values.customer_name,
         customer_phone: values.customer_phone,
         customer_email: values.customer_email || undefined,
@@ -109,8 +119,27 @@ export function CheckoutForm({ settings }: CheckoutFormProps) {
           product_id: item.productId,
           quantity: item.quantity,
           notes: item.notes || undefined,
+          addon_ids: item.selectedAddons.map((addon) => addon.id),
         })),
-      });
+      };
+      const order = await createOrder(payload);
+
+      if (values.payment_method === "CARD") {
+        setCardOrder({ order, email: values.customer_email || undefined });
+        return;
+      }
+      if (values.payment_method === "PIX") {
+        const response = await fetch("/api/mercado-pago/orders", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ order_id: order.order_id, access_token: order.access_token }),
+        });
+        const payment = await response.json() as { error?: string; qr_code?: string; qr_code_base64?: string };
+        if (!response.ok) throw new Error(payment.error ?? "Não foi possível gerar o Pix.");
+        clearCart();
+        setPixResult({ order, qr_code: payment.qr_code, qr_code_base64: payment.qr_code_base64 });
+        return;
+      }
 
       clearCart();
       toast.success(`Pedido #${order.order_number} confirmado.`);
@@ -128,6 +157,35 @@ export function CheckoutForm({ settings }: CheckoutFormProps) {
       setSubmissionError(message);
       toast.error("Não foi possível confirmar o pedido.");
     }
+  }
+
+  async function submitCard(paymentData: Record<string, unknown>) {
+    if (!cardOrder) return;
+    setSubmissionError(null);
+    const response = await fetch("/api/mercado-pago/orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ order_id: cardOrder.order.order_id, access_token: cardOrder.order.access_token, payment_data: paymentData }),
+    });
+    const result = await response.json() as { error?: string; payment_status?: string };
+    if (!response.ok) {
+      const message = result.error ?? "Pagamento não aprovado.";
+      setSubmissionError(message);
+      throw new Error(message);
+    }
+    clearCart();
+    toast.success(result.payment_status === "PAID" ? "Pagamento aprovado." : "Pagamento em processamento.");
+    const query = new URLSearchParams({ token: cardOrder.order.access_token, numero: String(cardOrder.order.order_number) });
+    router.replace(`/pedido/sucesso?${query.toString()}`);
+  }
+
+  if (pixResult) {
+    const tracking = `/pedido/acompanhar?token=${encodeURIComponent(pixResult.order.access_token)}`;
+    return <Card className="mx-auto max-w-xl"><CardContent className="py-8 text-center"><CheckCircle2 className="mx-auto size-12 text-primary" /><h2 className="mt-4 text-2xl font-bold">Pix do pedido #{pixResult.order.order_number}</h2><p className="mt-2 text-sm text-muted-foreground">Pague pelo QR Code ou copie o código. A confirmação é automática.</p>{pixResult.qr_code_base64 && <Image unoptimized width={256} height={256} className="mx-auto mt-6 size-64 rounded-xl border p-2" alt="QR Code Pix" src={`data:image/png;base64,${pixResult.qr_code_base64}`} />}{pixResult.qr_code && <div className="mt-5 rounded-xl bg-muted p-3 text-left"><p className="break-all text-xs">{pixResult.qr_code}</p><Button className="mt-3 w-full" variant="outline" onClick={() => navigator.clipboard.writeText(pixResult.qr_code ?? "")}><Copy />Copiar código Pix</Button></div>}<Button render={<Link href={tracking} />} className="mt-5 w-full">Acompanhar pagamento e pedido</Button></CardContent></Card>;
+  }
+
+  if (cardOrder && mercadoPagoPublicKey) {
+    return <Card className="mx-auto max-w-2xl"><CardHeader><CardTitle>Pagamento do pedido #{cardOrder.order.order_number}</CardTitle></CardHeader><CardContent><p className="mb-5 text-sm text-muted-foreground">Preencha os dados do cartão sem sair do site. Total: <strong className="text-foreground">{formatCurrency(cardOrder.order.total)}</strong></p><MercadoPagoCard amount={cardOrder.order.total} email={cardOrder.email} publicKey={mercadoPagoPublicKey} onSubmit={submitCard} onError={setSubmissionError} />{submissionError && <p className="mt-4 rounded-xl bg-destructive/5 p-3 text-sm text-destructive">{submissionError}</p>}</CardContent></Card>;
   }
 
   return (
@@ -224,11 +282,12 @@ export function CheckoutForm({ settings }: CheckoutFormProps) {
             <div className="grid gap-3 sm:grid-cols-3">
               {paymentOptions.map(({ value, label, icon: Icon }) => (
                 <Label key={value} className="has-checked:border-primary has-checked:bg-primary/5 cursor-pointer rounded-xl border p-4 transition">
-                  <input type="radio" value={value} className="size-4 accent-primary" {...form.register("payment_method")} />
+                  <input type="radio" value={value} disabled={value !== "CASH" && !mercadoPagoEnabled} className="size-4 accent-primary disabled:opacity-40" {...form.register("payment_method")} />
                   <span className="flex items-center gap-2"><Icon className="size-4" aria-hidden="true" />{label}</span>
                 </Label>
               ))}
             </div>
+            {!mercadoPagoEnabled && <p className="text-xs text-muted-foreground">Pix e cartão serão liberados assim que as credenciais do Mercado Pago forem configuradas.</p>}
             {paymentMethod === "CASH" && (
               <div className="space-y-2 border-t pt-5">
                 <Label htmlFor="change_for">Troco para quanto?</Label>
@@ -254,7 +313,7 @@ export function CheckoutForm({ settings }: CheckoutFormProps) {
           <div className="max-h-56 space-y-3 overflow-y-auto pr-1">
             {items.map((item) => (
               <div key={item.lineId} className="flex justify-between gap-4 text-sm">
-                <span className="text-muted-foreground">{item.quantity}× {item.name}</span>
+                <span className="text-muted-foreground">{item.quantity}× {item.name}{item.selectedAddons.length > 0 && <small className="mt-0.5 block">+ {item.selectedAddons.map((addon) => addon.name).join(", ")}</small>}</span>
                 <span className="shrink-0 font-medium">{formatCurrency(item.price * item.quantity)}</span>
               </div>
             ))}

@@ -76,7 +76,7 @@ export function KitchenOrderCard({
                 <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-foreground text-base text-background">
                   {item.quantity}
                 </span>
-                <span className="pt-1">{item.product_name}</span>
+                <span className="pt-1">{item.product_name}{item.addons.length > 0 && <small className="mt-1 block text-sm font-medium text-muted-foreground">+ {item.addons.map((addon) => addon.addon_name).join(", ")}</small>}</span>
               </div>
               {item.notes && (
                 <p className="ml-11 mt-2 rounded-lg bg-amber-50 p-2 text-sm font-semibold leading-5 text-amber-900">

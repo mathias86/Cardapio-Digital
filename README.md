@@ -25,7 +25,11 @@ Preencha `.env.local` com a URL e a chave pública do projeto Supabase. A chave 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://seu-projeto.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=sua-chave-publicavel
-SUPABASE_SERVICE_ROLE_KEY=sua-chave-service-role-opcional
+SUPABASE_SERVICE_ROLE_KEY=sua-chave-service-role
+NEXT_PUBLIC_MERCADO_PAGO_PUBLIC_KEY=APP_USR-sua-public-key
+MERCADO_PAGO_ACCESS_TOKEN=APP_USR-seu-access-token
+MERCADO_PAGO_WEBHOOK_SECRET=seu-segredo-de-webhook
+NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
 A aplicação estará disponível em `http://localhost:3000`.
@@ -72,7 +76,9 @@ pnpm build
 
 1. Importe este repositório na Vercel.
 2. Cadastre `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` em todos os ambientes necessários.
-3. Cadastre `SUPABASE_SERVICE_ROLE_KEY` somente se uma futura função exclusivamente de servidor precisar dela.
+3. Cadastre `SUPABASE_SERVICE_ROLE_KEY` somente no servidor; ela é usada para registrar de forma segura o retorno do pagamento.
+4. Para o Checkout Transparente, cadastre as três credenciais do Mercado Pago e use a URL pública do site em `NEXT_PUBLIC_APP_URL`.
+5. No painel do Mercado Pago, habilite o evento **Order (Mercado Pago)** apontando para `/api/mercado-pago/webhook` e copie a assinatura secreta para `MERCADO_PAGO_WEBHOOK_SECRET`.
 4. Faça o deploy e adicione a URL publicada aos endereços permitidos em **Supabase Auth → URL Configuration**.
 
 ## Segurança

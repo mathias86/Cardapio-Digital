@@ -6,6 +6,8 @@ import type {
   MenuProduct,
   PublicMenuData,
   StoreSettings,
+  MenuAddon,
+  MenuAddonGroup,
 } from "@/types/menu";
 
 type CategoryRow = Omit<MenuCategory, "products">;
@@ -17,7 +19,7 @@ function toNumber(value: number | string) {
 export const getPublicMenuData = cache(async (): Promise<PublicMenuData> => {
   const supabase = createPublicSupabaseClient();
 
-  const [settingsResult, categoriesResult, productsResult] = await Promise.all([
+  const [settingsResult, categoriesResult, productsResult, groupsResult, addonsResult, linksResult] = await Promise.all([
     supabase
       .from("store_settings")
       .select(
@@ -40,11 +42,14 @@ export const getPublicMenuData = cache(async (): Promise<PublicMenuData> => {
       .eq("active", true)
       .order("display_order", { ascending: true })
       .order("name", { ascending: true })
-      .returns<MenuProduct[]>(),
+      .returns<Array<Omit<MenuProduct, "addon_groups">>>(),
+    supabase.from("addon_groups").select("id,name,description,min_selections,max_selections,display_order").eq("active", true).order("display_order").returns<Array<Omit<MenuAddonGroup, "addons">>>(),
+    supabase.from("addons").select("id,group_id,name,description,price,display_order").eq("active", true).order("display_order").returns<Array<MenuAddon & { group_id: string }>>(),
+    supabase.from("product_addon_groups").select("product_id,addon_group_id,display_order").order("display_order").returns<Array<{ product_id: string; addon_group_id: string; display_order: number }>>(),
   ]);
 
   const firstError =
-    settingsResult.error ?? categoriesResult.error ?? productsResult.error;
+    settingsResult.error ?? categoriesResult.error ?? productsResult.error ?? groupsResult.error ?? addonsResult.error ?? linksResult.error;
 
   if (firstError) {
     throw new Error(`Falha ao carregar o cardápio: ${firstError.message}`);
@@ -54,9 +59,26 @@ export const getPublicMenuData = cache(async (): Promise<PublicMenuData> => {
     throw new Error("As configurações públicas da loja não foram encontradas.");
   }
 
-  const products = (productsResult.data ?? []).map((product) => ({
+  const addonsByGroup = new Map<string, MenuAddon[]>();
+  for (const { group_id, ...addon } of addonsResult.data ?? []) {
+    const values = addonsByGroup.get(group_id) ?? [];
+    values.push({ ...addon, price: toNumber(addon.price) });
+    addonsByGroup.set(group_id, values);
+  }
+  const groupMap = new Map((groupsResult.data ?? []).map((group) => [group.id, { ...group, addons: addonsByGroup.get(group.id) ?? [] }]));
+  const groupsByProduct = new Map<string, MenuAddonGroup[]>();
+  for (const link of linksResult.data ?? []) {
+    const group = groupMap.get(link.addon_group_id);
+    if (!group) continue;
+    const values = groupsByProduct.get(link.product_id) ?? [];
+    values.push(group);
+    groupsByProduct.set(link.product_id, values);
+  }
+
+  const products: MenuProduct[] = (productsResult.data ?? []).map((product) => ({
     ...product,
     price: toNumber(product.price),
+    addon_groups: groupsByProduct.get(product.id) ?? [],
   }));
 
   const productsByCategory = new Map<string, MenuProduct[]>();

@@ -19,5 +19,7 @@ export async function CheckoutContent() {
     return <MenuErrorState />;
   }
 
-  return <CheckoutForm settings={menuData.settings} />;
+  const mercadoPagoPublicKey = process.env.NEXT_PUBLIC_MERCADO_PAGO_PUBLIC_KEY;
+  const mercadoPagoEnabled = Boolean(mercadoPagoPublicKey && process.env.MERCADO_PAGO_ACCESS_TOKEN && process.env.SUPABASE_SERVICE_ROLE_KEY);
+  return <CheckoutForm settings={menuData.settings} mercadoPagoPublicKey={mercadoPagoPublicKey} mercadoPagoEnabled={mercadoPagoEnabled} />;
 }

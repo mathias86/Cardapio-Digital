@@ -22,6 +22,7 @@ const deliveryItemSchema = z.object({
   unit_price: databaseNumber,
   total_price: databaseNumber,
   notes: z.string().nullable(),
+  addons: z.array(z.object({ id: z.uuid().optional(), addon_name: z.string(), unit_price: databaseNumber, total_price: databaseNumber })).default([]),
 });
 
 const deliveryOrderFields = {
@@ -81,7 +82,7 @@ export async function getDeliveryOrders(): Promise<DeliveryOrdersResult> {
   const { data, error } = await supabase
     .from("orders")
     .select(
-      "id,order_number,status,customer_name,customer_phone,address_street,address_number,address_neighborhood,address_complement,address_reference,payment_method,payment_status,change_for,subtotal,delivery_fee,total,notes,delivery_assigned_to,delivery_assigned_at,created_at,items:order_items(id,product_name,quantity,unit_price,total_price,notes)",
+      "id,order_number,status,customer_name,customer_phone,address_street,address_number,address_neighborhood,address_complement,address_reference,payment_method,payment_status,change_for,subtotal,delivery_fee,total,notes,delivery_assigned_to,delivery_assigned_at,created_at,items:order_items(id,product_name,quantity,unit_price,total_price,notes,addons:order_item_addons(id,addon_name,unit_price,total_price))",
     )
     .eq("delivery_type", "DELIVERY")
     .in("status", ["READY", "OUT_FOR_DELIVERY", "DELIVERED"])

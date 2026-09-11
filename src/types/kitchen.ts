@@ -1,4 +1,4 @@
-import type { DeliveryType, OrderStatus } from "@/types/order";
+import type { DeliveryType, OrderItemAddon, OrderStatus } from "@/types/order";
 
 export type KitchenOrderStatus = Extract<
   OrderStatus,
@@ -13,6 +13,7 @@ export type KitchenOrderItem = {
   unit_price: number;
   total_price: number;
   notes: string | null;
+  addons: OrderItemAddon[];
 };
 
 export type KitchenOrder = {
@@ -38,5 +39,6 @@ export type KitchenPrintData = {
     quantity: number;
     product_name: string;
     notes: string | null;
+    addons: OrderItemAddon[];
   }>;
 };

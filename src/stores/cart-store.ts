@@ -14,12 +14,14 @@ export type CartItem = {
   quantity: number;
   notes: string;
   stockQuantity: number | null;
+  selectedAddons: Array<{ id: string; name: string; price: number }>;
 };
 
 type AddCartItemInput = {
   product: MenuProduct;
   quantity: number;
   notes: string;
+  selectedAddons: Array<{ id: string; name: string; price: number }>;
 };
 
 type CartState = {
@@ -42,7 +44,7 @@ export const useCartStore = create<CartState>()(
   persist(
     (set) => ({
       items: [],
-      addItem: ({ product, quantity, notes }) =>
+      addItem: ({ product, quantity, notes, selectedAddons }) =>
         set((state) => ({
           items: [
             ...state.items,
@@ -50,11 +52,12 @@ export const useCartStore = create<CartState>()(
               lineId: createLineId(),
               productId: product.id,
               name: product.name,
-              price: product.price,
+              price: product.price + selectedAddons.reduce((sum, addon) => sum + addon.price, 0),
               imageUrl: product.image_url,
               quantity,
               notes: notes.trim(),
               stockQuantity: product.stock_quantity,
+              selectedAddons,
             },
           ],
         })),
@@ -78,10 +81,14 @@ export const useCartStore = create<CartState>()(
     }),
     {
       name: "cardapio-digital-cart",
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() => localStorage),
       skipHydration: true,
       partialize: (state) => ({ items: state.items }),
+      migrate: (persisted) => {
+        const state = persisted as CartState;
+        return { ...state, items: (state.items ?? []).map((item) => ({ ...item, selectedAddons: item.selectedAddons ?? [] })) };
+      },
     },
   ),
 );

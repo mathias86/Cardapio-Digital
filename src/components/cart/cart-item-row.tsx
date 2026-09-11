@@ -29,6 +29,9 @@ export function CartItemRow({ compact = false, item }: CartItemRowProps) {
             <p className="mt-1 text-sm font-semibold text-primary">
               {formatCurrency(item.price * item.quantity)}
             </p>
+            {item.selectedAddons.length > 0 && (
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">+ {item.selectedAddons.map((addon) => addon.name).join(", ")}</p>
+            )}
           </div>
           <Button
             type="button"

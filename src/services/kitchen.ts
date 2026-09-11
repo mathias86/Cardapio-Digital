@@ -18,6 +18,7 @@ const kitchenItemSchema = z.object({
   unit_price: databaseNumber,
   total_price: databaseNumber,
   notes: z.string().nullable(),
+  addons: z.array(z.object({ id: z.uuid().optional(), addon_name: z.string(), unit_price: databaseNumber, total_price: databaseNumber })).default([]),
 });
 
 const kitchenOrderSchema = z.object({
@@ -44,6 +45,7 @@ const kitchenPrintSchema = z.object({
       quantity: z.number().int().positive(),
       product_name: z.string(),
       notes: z.string().nullable(),
+      addons: z.array(z.object({ id: z.uuid().optional(), addon_name: z.string(), unit_price: databaseNumber, total_price: databaseNumber })).default([]),
     }),
   ),
 });
@@ -65,9 +67,10 @@ export async function getKitchenOrders(): Promise<KitchenOrder[]> {
   const { data, error } = await supabase
     .from("orders")
     .select(
-      "id,order_number,status,delivery_type,customer_name,notes,created_at,items:order_items(id,product_id,product_name,quantity,unit_price,total_price,notes)",
+      "id,order_number,status,delivery_type,customer_name,notes,created_at,items:order_items(id,product_id,product_name,quantity,unit_price,total_price,notes,addons:order_item_addons(id,addon_name,unit_price,total_price))",
     )
     .in("status", ["PENDING", "CONFIRMED", "PREPARING", "READY"])
+    .or("payment_method.eq.CASH,payment_status.eq.PAID")
     .order("created_at", { ascending: true });
 
   if (error) throw internalError(error);

@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import type { CategoryFormValues, ProductFormValues, SettingsFormValues } from "@/lib/validations/admin";
-import type { AdminCategory, AdminDashboardData, AdminProduct, AdminStoreSettings } from "@/types/admin";
+import type { AdminAddonGroup, AdminCategory, AdminDashboardData, AdminProduct, AdminStoreSettings } from "@/types/admin";
 
 const databaseNumber = z.union([z.number(), z.string()]).transform(Number);
 const categorySchema = z.object({ id: z.uuid(), name: z.string(), description: z.string().nullable(), active: z.boolean(), display_order: z.number(), created_at: z.string() });
@@ -67,6 +67,56 @@ export async function saveAdminProduct(values: ProductFormValues, id?: string) {
 
 export async function deleteAdminProduct(id: string) {
   const { error } = await createSupabaseBrowserClient().from("products").delete().eq("id", id);
+  if (error) throw adminError(error);
+}
+
+export async function getAdminAddonGroups(): Promise<AdminAddonGroup[]> {
+  const supabase = createSupabaseBrowserClient();
+  const [groups, addons, links] = await Promise.all([
+    supabase.from("addon_groups").select("id,name,description,min_selections,max_selections,active,display_order").order("display_order").order("name"),
+    supabase.from("addons").select("id,group_id,name,description,price,active,display_order").order("display_order").order("name"),
+    supabase.from("product_addon_groups").select("product_id,addon_group_id"),
+  ]);
+  const error = groups.error ?? addons.error ?? links.error;
+  if (error) throw adminError(error);
+  const groupRows = (groups.data ?? []) as Array<Omit<AdminAddonGroup, "addons" | "product_ids">>;
+  const addonRows = (addons.data ?? []) as AdminAddonGroup["addons"];
+  const linkRows = (links.data ?? []) as Array<{ product_id: string; addon_group_id: string }>;
+  return groupRows.map((group) => ({
+    ...group,
+    addons: addonRows.filter((addon) => addon.group_id === group.id).map((addon) => ({ ...addon, price: Number(addon.price) })),
+    product_ids: linkRows.filter((link) => link.addon_group_id === group.id).map((link) => link.product_id),
+  })) as AdminAddonGroup[];
+}
+
+export async function saveAdminAddonGroup(values: Omit<AdminAddonGroup, "id" | "addons" | "product_ids"> & { id?: string; product_ids: string[] }) {
+  const supabase = createSupabaseBrowserClient();
+  const payload = { name: values.name.trim(), description: nullableText(values.description ?? ""), min_selections: values.min_selections, max_selections: values.max_selections, active: values.active, display_order: values.display_order };
+  const result = values.id ? await supabase.from("addon_groups").update(payload).eq("id", values.id).select("id").single() : await supabase.from("addon_groups").insert(payload).select("id").single();
+  if (result.error) throw adminError(result.error);
+  const groupId = result.data.id;
+  const deleted = await supabase.from("product_addon_groups").delete().eq("addon_group_id", groupId);
+  if (deleted.error) throw adminError(deleted.error);
+  if (values.product_ids.length) {
+    const inserted = await supabase.from("product_addon_groups").insert(values.product_ids.map((product_id, display_order) => ({ product_id, addon_group_id: groupId, display_order })));
+    if (inserted.error) throw adminError(inserted.error);
+  }
+}
+
+export async function deleteAdminAddonGroup(id: string) {
+  const { error } = await createSupabaseBrowserClient().from("addon_groups").delete().eq("id", id);
+  if (error) throw adminError(error);
+}
+
+export async function saveAdminAddon(values: { id?: string; group_id: string; name: string; description: string; price: number; active: boolean; display_order: number }) {
+  const payload = { group_id: values.group_id, name: values.name.trim(), description: nullableText(values.description), price: values.price, active: values.active, display_order: values.display_order };
+  const query = values.id ? createSupabaseBrowserClient().from("addons").update(payload).eq("id", values.id) : createSupabaseBrowserClient().from("addons").insert(payload);
+  const { error } = await query;
+  if (error) throw adminError(error);
+}
+
+export async function deleteAdminAddon(id: string) {
+  const { error } = await createSupabaseBrowserClient().from("addons").delete().eq("id", id);
   if (error) throw adminError(error);
 }
 

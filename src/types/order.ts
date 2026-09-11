@@ -30,6 +30,7 @@ export type CreateOrderPayload = {
     product_id: string;
     quantity: number;
     notes?: string;
+    addon_ids?: string[];
   }>;
 };
 
@@ -50,7 +51,10 @@ export type OrderTrackingItem = {
   unit_price: number;
   total_price: number;
   notes: string | null;
+  addons: OrderItemAddon[];
 };
+
+export type OrderItemAddon = { id?: string; addon_name: string; unit_price: number; total_price: number };
 
 export type OrderTrackingData = {
   id: string;
