@@ -12,6 +12,7 @@ import {
   Menu,
   Package,
   ListPlus,
+  Landmark,
   Settings,
   Truck,
 } from "lucide-react";
@@ -34,6 +35,7 @@ const adminLinks = [
   { href: "/admin", label: "Visão geral", icon: LayoutDashboard },
   { href: "/admin/produtos", label: "Produtos", icon: Package },
   { href: "/admin/adicionais", label: "Adicionais", icon: ListPlus },
+  { href: "/admin/pagamentos", label: "Pagamentos", icon: Landmark },
   { href: "/admin/categorias", label: "Categorias", icon: FolderTree },
   { href: "/admin/pedidos", label: "Pedidos", icon: ClipboardList },
   { href: "/admin/configuracoes", label: "Configurações", icon: Settings },

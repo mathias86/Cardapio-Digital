@@ -14,9 +14,7 @@ export function getPaymentFromOrder(data: Record<string, unknown>): MercadoPagoP
   return transactions?.payments?.[0] ?? null;
 }
 
-export async function mercadoPagoRequest(path: string, init?: RequestInit) {
-  const accessToken = process.env.MERCADO_PAGO_ACCESS_TOKEN;
-  if (!accessToken) throw new Error("MERCADO_PAGO_ACCESS_TOKEN não configurado.");
+export async function mercadoPagoRequest(path: string, accessToken: string, init?: RequestInit) {
   const response = await fetch(`https://api.mercadopago.com${path}`, { ...init, headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json", ...(init?.headers ?? {}) }, cache: "no-store" });
   const data = await response.json() as Record<string, unknown>;
   if (!response.ok) {

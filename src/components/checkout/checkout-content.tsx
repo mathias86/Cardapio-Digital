@@ -3,6 +3,7 @@ import { connection } from "next/server";
 import { CheckoutForm } from "@/components/checkout/checkout-form";
 import { MenuErrorState } from "@/components/menu/menu-feedback";
 import { getPublicMenuData } from "@/services/public-menu";
+import { getMercadoPagoPublicSettings } from "@/services/payment-settings";
 
 export async function CheckoutContent() {
   await connection();
@@ -19,7 +20,6 @@ export async function CheckoutContent() {
     return <MenuErrorState />;
   }
 
-  const mercadoPagoPublicKey = process.env.NEXT_PUBLIC_MERCADO_PAGO_PUBLIC_KEY;
-  const mercadoPagoEnabled = Boolean(mercadoPagoPublicKey && process.env.MERCADO_PAGO_ACCESS_TOKEN && process.env.SUPABASE_SERVICE_ROLE_KEY);
-  return <CheckoutForm settings={menuData.settings} mercadoPagoPublicKey={mercadoPagoPublicKey} mercadoPagoEnabled={mercadoPagoEnabled} />;
+  const paymentSettings = await getMercadoPagoPublicSettings().catch(() => null);
+  return <CheckoutForm settings={menuData.settings} mercadoPagoPublicKey={paymentSettings?.public_key ?? undefined} mercadoPagoEnabled={paymentSettings?.enabled ?? false} />;
 }
