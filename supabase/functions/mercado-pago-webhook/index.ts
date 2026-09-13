@@ -1,6 +1,27 @@
 import { jsonResponse } from "../_shared/cors.ts";
 import { createAdminClient, getConfiguredMercadoPagoSettings, mapPaymentStatus, mercadoPagoRequest, type MercadoPagoPayment } from "../_shared/payments.ts";
 
+type MercadoPagoWebhook = {
+  action?: string;
+  type?: string;
+  data?: {
+    id?: string | number;
+    external_reference?: string;
+    status?: string;
+    status_detail?: string;
+    type?: string;
+    transactions?: {
+      payments?: Array<{
+        id?: string | number;
+        status?: string;
+        status_detail?: string;
+      }>;
+    };
+  };
+};
+
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 async function hmacHex(secret: string, message: string) {
   const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(message));
@@ -28,7 +49,7 @@ Deno.serve(async (request) => {
   if (request.method !== "POST") return jsonResponse({ received: false }, 405);
 
   try {
-    const body = await request.json() as { data?: { id?: string | number } };
+    const body = await request.json() as MercadoPagoWebhook;
     const dataId = String(body.data?.id ?? new URL(request.url).searchParams.get("data.id") ?? "");
     if (!dataId) return jsonResponse({ received: false }, 400);
     const settings = await getConfiguredMercadoPagoSettings();
@@ -41,6 +62,32 @@ Deno.serve(async (request) => {
     }
     if (!matched) return jsonResponse({ error: "Assinatura inválida." }, 401);
 
+    if (body.type === "order" || body.action?.startsWith("order.")) {
+      const externalReference = String(body.data?.external_reference ?? "");
+      if (!uuidPattern.test(externalReference)) {
+        return jsonResponse({ received: true, ignored: true });
+      }
+
+      const orderPayment = body.data?.transactions?.payments?.[0];
+      const status = String(orderPayment?.status ?? body.data?.status ?? "pending");
+      const { error } = await createAdminClient().from("orders").update({
+        payment_environment: matched.environment,
+        provider_order_id: dataId,
+        provider_payment_id: orderPayment?.id ? String(orderPayment.id) : null,
+        provider_status: status,
+        payment_status: mapPaymentStatus(status),
+        payment_metadata: {
+          event_action: body.action,
+          order_status: body.data?.status,
+          order_status_detail: body.data?.status_detail,
+          payment_status_detail: orderPayment?.status_detail,
+          source: body.data?.type,
+        },
+      }).eq("id", externalReference);
+      if (error) throw error;
+      return jsonResponse({ received: true });
+    }
+
     const payment = await mercadoPagoRequest(`/v1/payments/${encodeURIComponent(dataId)}`, matched.access_token) as MercadoPagoPayment & Record<string, unknown>;
     const externalReference = String(payment.external_reference ?? "");
     const status = String(payment.status ?? "pending");
@@ -50,7 +97,8 @@ Deno.serve(async (request) => {
     const { error } = externalReference ? await query.eq("id", externalReference) : await query.eq("provider_payment_id", dataId);
     if (error) throw error;
     return jsonResponse({ received: true });
-  } catch {
-    return jsonResponse({ received: false }, 400);
+  } catch (error) {
+    console.error("Mercado Pago webhook error", error);
+    return jsonResponse({ received: false }, 500);
   }
 });
