@@ -16,7 +16,7 @@ import type { DeliveryOrderStatus } from "@/types/delivery";
 type DeliveryFilter = DeliveryOrderStatus;
 
 const filterConfig = [
-  { value: "READY", label: "Disponíveis", icon: PackageCheck },
+  { value: "READY", label: "Aguardando", icon: PackageCheck },
   { value: "OUT_FOR_DELIVERY", label: "Em rota", icon: Navigation },
   { value: "DELIVERED", label: "Concluídas", icon: CheckCircle2 },
 ] as const;
@@ -41,7 +41,7 @@ export function DeliveryDashboard() {
     onSuccess: async (_, variables) => {
       toast.success(
         variables.status === "OUT_FOR_DELIVERY"
-          ? "Entrega assumida. Boa rota!"
+          ? "Rota iniciada. Boa entrega!"
           : "Entrega concluída.",
       );
       setFilter(variables.status);
@@ -149,7 +149,7 @@ export function DeliveryDashboard() {
           ))
         ) : (
           <div className="grid min-h-64 place-items-center rounded-2xl border border-dashed bg-card p-8 text-center">
-            <div><PackageCheck className="mx-auto size-12 text-muted-foreground" aria-hidden="true" /><h2 className="mt-4 text-xl font-bold">Nada por aqui</h2><p className="mt-2 text-sm text-muted-foreground">{filter === "READY" ? "Nenhuma entrega disponível agora." : filter === "OUT_FOR_DELIVERY" ? "Você não possui entregas em rota." : "Nenhuma entrega concluída recentemente."}</p></div>
+            <div><PackageCheck className="mx-auto size-12 text-muted-foreground" aria-hidden="true" /><h2 className="mt-4 text-xl font-bold">Nada por aqui</h2><p className="mt-2 text-sm text-muted-foreground">{filter === "READY" ? "Nenhuma entrega foi atribuída a você." : filter === "OUT_FOR_DELIVERY" ? "Você não possui entregas em rota." : "Nenhuma entrega concluída recentemente."}</p></div>
           </div>
         )}
       </div>

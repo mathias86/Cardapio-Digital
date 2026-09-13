@@ -36,6 +36,14 @@ export function createCheckoutSchema(subtotal: number, deliveryFee: number) {
         }
       }
 
+      if (data.payment_method !== "CASH" && !data.customer_email) {
+        context.addIssue({
+          code: "custom",
+          path: ["customer_email"],
+          message: "Informe seu e-mail para o pagamento online.",
+        });
+      }
+
       if (data.payment_method === "CASH" && data.change_for) {
         const total =
           subtotal + (data.delivery_type === "DELIVERY" ? deliveryFee : 0);

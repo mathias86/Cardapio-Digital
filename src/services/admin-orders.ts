@@ -11,7 +11,7 @@ const orderSchema = z.object({
   id: z.uuid(), order_number: databaseNumber, customer_name: z.string(), customer_phone: z.string(), customer_email: z.string().nullable(), status: orderStatus,
   delivery_type: z.enum(["DELIVERY", "PICKUP"]), payment_method: z.enum(["PIX", "CARD", "CASH"]), payment_status: z.enum(["PENDING", "PAID", "FAILED", "REFUNDED"]),
   address_street: z.string().nullable(), address_number: z.string().nullable(), address_neighborhood: z.string().nullable(), address_complement: z.string().nullable(), address_reference: z.string().nullable(), notes: z.string().nullable(),
-  subtotal: databaseNumber, delivery_fee: databaseNumber, total: databaseNumber, change_for: nullableDatabaseNumber, created_at: z.string(),
+  subtotal: databaseNumber, delivery_fee: databaseNumber, discount_amount: databaseNumber, coupon_code: z.string().nullable(), total: databaseNumber, change_for: nullableDatabaseNumber, delivery_assigned_to: z.uuid().nullable(), created_at: z.string(),
   items: z.array(z.object({ id: z.uuid(), product_name: z.string(), quantity: z.number(), unit_price: databaseNumber, total_price: databaseNumber, notes: z.string().nullable(), addons: z.array(z.object({ id: z.uuid(), addon_name: z.string(), unit_price: databaseNumber, total_price: databaseNumber })).default([]) })),
 });
 
@@ -22,7 +22,7 @@ function adminOrderError(error: { code?: string; message: string }) {
 
 export async function getAdminOrders(filters: AdminOrderFilters): Promise<AdminOrder[]> {
   const supabase = createSupabaseBrowserClient();
-  let query = supabase.from("orders").select("id,order_number,customer_name,customer_phone,customer_email,status,delivery_type,payment_method,payment_status,address_street,address_number,address_neighborhood,address_complement,address_reference,notes,subtotal,delivery_fee,total,change_for,created_at,items:order_items(id,product_name,quantity,unit_price,total_price,notes,addons:order_item_addons(id,addon_name,unit_price,total_price))").order("created_at", { ascending: false }).limit(200);
+  let query = supabase.from("orders").select("id,order_number,customer_name,customer_phone,customer_email,status,delivery_type,payment_method,payment_status,address_street,address_number,address_neighborhood,address_complement,address_reference,notes,subtotal,delivery_fee,discount_amount,coupon_code,total,change_for,delivery_assigned_to,created_at,items:order_items(id,product_name,quantity,unit_price,total_price,notes,addons:order_item_addons(id,addon_name,unit_price,total_price))").order("created_at", { ascending: false }).limit(200);
   if (filters.status !== "ALL") query = query.eq("status", filters.status);
   if (filters.from) query = query.gte("created_at", `${filters.from}T00:00:00-03:00`);
   if (filters.to) query = query.lte("created_at", `${filters.to}T23:59:59.999-03:00`);

@@ -50,6 +50,8 @@ const orderTrackingSchema = z.object({
   customer_name: z.string(),
   subtotal: databaseNumber,
   delivery_fee: databaseNumber,
+  discount_amount: databaseNumber,
+  coupon_code: z.string().nullable(),
   total: databaseNumber,
   accepted_at: z.string().nullable(),
   preparing_at: z.string().nullable(),

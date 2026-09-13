@@ -1,0 +1,10 @@
+project_id = "agwzimokjevwrznjiscn"
+
+[functions.mercado-pago-orders]
+verify_jwt = false
+
+[functions.mercado-pago-webhook]
+verify_jwt = false
+
+[functions.admin-delivery-users]
+verify_jwt = false

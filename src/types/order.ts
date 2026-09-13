@@ -26,6 +26,7 @@ export type CreateOrderPayload = {
     reference?: string;
   };
   notes?: string;
+  coupon_code?: string;
   items: Array<{
     product_id: string;
     quantity: number;
@@ -66,6 +67,8 @@ export type OrderTrackingData = {
   customer_name: string;
   subtotal: number;
   delivery_fee: number;
+  discount_amount: number;
+  coupon_code: string | null;
   total: number;
   accepted_at: string | null;
   preparing_at: string | null;

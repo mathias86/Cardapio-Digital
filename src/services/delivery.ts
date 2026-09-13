@@ -86,7 +86,7 @@ export async function getDeliveryOrders(): Promise<DeliveryOrdersResult> {
     )
     .eq("delivery_type", "DELIVERY")
     .in("status", ["READY", "OUT_FOR_DELIVERY", "DELIVERED"])
-    .or(`status.eq.READY,delivery_assigned_to.eq.${authData.user.id}`)
+    .eq("delivery_assigned_to", authData.user.id)
     .order("created_at", { ascending: false })
     .limit(100);
 

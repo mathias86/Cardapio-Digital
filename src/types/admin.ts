@@ -26,6 +26,10 @@ export type AdminProduct = {
 export type AdminAddon = { id: string; group_id: string; name: string; description: string | null; price: number; active: boolean; display_order: number };
 export type AdminAddonGroup = { id: string; name: string; description: string | null; min_selections: number; max_selections: number; active: boolean; display_order: number; addons: AdminAddon[]; product_ids: string[] };
 
+export type DeliveryPerson = { id: string; name: string; email: string | null; active: boolean; created_at: string };
+export type CouponDiscountType = "PERCENTAGE" | "FIXED";
+export type AdminCoupon = { id: string; code: string; name: string; description: string | null; discount_type: CouponDiscountType; discount_value: number; minimum_order_value: number; maximum_discount: number | null; starts_at: string | null; ends_at: string | null; usage_limit: number | null; usage_count: number; active: boolean; created_at: string };
+
 export type AdminStoreSettings = {
   id: number;
   name: string;
@@ -83,6 +87,9 @@ export type AdminOrder = AdminRecentOrder & {
   subtotal: number;
   delivery_fee: number;
   change_for: number | null;
+  coupon_code: string | null;
+  discount_amount: number;
+  delivery_assigned_to: string | null;
   items: AdminOrderItem[];
 };
 

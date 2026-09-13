@@ -15,6 +15,8 @@ import {
   Landmark,
   Settings,
   Truck,
+  Bike,
+  TicketPercent,
 } from "lucide-react";
 
 import { SignOutButton } from "@/components/auth/sign-out-button";
@@ -35,9 +37,11 @@ const adminLinks = [
   { href: "/admin", label: "Visão geral", icon: LayoutDashboard },
   { href: "/admin/produtos", label: "Produtos", icon: Package },
   { href: "/admin/adicionais", label: "Adicionais", icon: ListPlus },
+  { href: "/admin/cupons", label: "Cupons", icon: TicketPercent },
   { href: "/admin/pagamentos", label: "Pagamentos", icon: Landmark },
   { href: "/admin/categorias", label: "Categorias", icon: FolderTree },
   { href: "/admin/pedidos", label: "Pedidos", icon: ClipboardList },
+  { href: "/admin/motoboys", label: "Motoboys", icon: Bike },
   { href: "/admin/configuracoes", label: "Configurações", icon: Settings },
   { href: "/admin/relatorios", label: "Relatórios", icon: BarChart3 },
 ] as const;

@@ -149,6 +149,7 @@ export function TrackingView({ accessToken }: { accessToken: string }) {
           <CardContent className="space-y-4">
             <div className="flex justify-between text-sm"><span className="text-muted-foreground">Subtotal</span><span>{formatCurrency(order.subtotal)}</span></div>
             <div className="flex justify-between text-sm"><span className="text-muted-foreground">Taxa de entrega</span><span>{order.delivery_fee > 0 ? formatCurrency(order.delivery_fee) : "Grátis"}</span></div>
+            {order.discount_amount > 0 && <div className="flex justify-between text-sm text-emerald-700"><span>Cupom {order.coupon_code}</span><span>− {formatCurrency(order.discount_amount)}</span></div>}
             <Separator />
             <div className="flex justify-between text-lg"><strong>Total</strong><strong className="text-primary">{formatCurrency(order.total)}</strong></div>
           </CardContent>

@@ -21,6 +21,7 @@ import { useCartHydrated } from "@/hooks/use-cart-hydrated";
 import { formatCurrency } from "@/lib/formatters/currency";
 import { createCheckoutSchema, type CheckoutFormValues } from "@/lib/validations/checkout";
 import { createOrder } from "@/services/orders";
+import { validateCoupon, type CouponValidation } from "@/services/coupons";
 import { getCartSubtotal, useCartStore } from "@/stores/cart-store";
 import type { StoreSettings } from "@/types/menu";
 import type { CreatedOrder, CreateOrderPayload } from "@/types/order";
@@ -49,6 +50,9 @@ export function CheckoutForm({ settings, mercadoPagoEnabled, mercadoPagoPublicKe
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [cardOrder, setCardOrder] = useState<{ order: CreatedOrder; email?: string } | null>(null);
   const [pixResult, setPixResult] = useState<{ order: CreatedOrder; qr_code?: string; qr_code_base64?: string } | null>(null);
+  const [couponCode, setCouponCode] = useState("");
+  const [coupon, setCoupon] = useState<(CouponValidation & { subtotal: number }) | null>(null);
+  const [couponLoading, setCouponLoading] = useState(false);
   const subtotal = getCartSubtotal(items);
   const schema = useMemo(
     () => createCheckoutSchema(subtotal, settings.delivery_fee),
@@ -76,7 +80,9 @@ export function CheckoutForm({ settings, mercadoPagoEnabled, mercadoPagoPublicKe
   const deliveryType = useWatch({ control: form.control, name: "delivery_type" });
   const paymentMethod = useWatch({ control: form.control, name: "payment_method" });
   const deliveryFee = deliveryType === "DELIVERY" ? settings.delivery_fee : 0;
-  const total = subtotal + deliveryFee;
+  const appliedCoupon = coupon?.subtotal === subtotal ? coupon : null;
+  const discount = appliedCoupon?.discount_amount ?? 0;
+  const total = subtotal + deliveryFee - discount;
   const belowMinimum = subtotal < settings.minimum_order_value;
 
   if (!hydrated) {
@@ -115,6 +121,7 @@ export function CheckoutForm({ settings, mercadoPagoEnabled, mercadoPagoPublicKe
               }
             : undefined,
         notes: values.notes || undefined,
+        coupon_code: appliedCoupon?.code,
         items: items.map((item) => ({
           product_id: item.productId,
           quantity: item.quantity,
@@ -179,6 +186,22 @@ export function CheckoutForm({ settings, mercadoPagoEnabled, mercadoPagoPublicKe
     router.replace(`/pedido/sucesso?${query.toString()}`);
   }
 
+  async function applyCoupon() {
+    if (!couponCode.trim()) return;
+    setCouponLoading(true);
+    try {
+      const result = await validateCoupon(couponCode, subtotal);
+      setCoupon({ ...result, subtotal });
+      setCouponCode(result.code);
+      toast.success(`Cupom ${result.code} aplicado.`);
+    } catch (error) {
+      setCoupon(null);
+      toast.error(error instanceof Error ? error.message : "Cupom inválido.");
+    } finally {
+      setCouponLoading(false);
+    }
+  }
+
   if (pixResult) {
     const tracking = `/pedido/acompanhar?token=${encodeURIComponent(pixResult.order.access_token)}`;
     return <Card className="mx-auto max-w-xl"><CardContent className="py-8 text-center"><CheckCircle2 className="mx-auto size-12 text-primary" /><h2 className="mt-4 text-2xl font-bold">Pix do pedido #{pixResult.order.order_number}</h2><p className="mt-2 text-sm text-muted-foreground">Pague pelo QR Code ou copie o código. A confirmação é automática.</p>{pixResult.qr_code_base64 && <Image unoptimized width={256} height={256} className="mx-auto mt-6 size-64 rounded-xl border p-2" alt="QR Code Pix" src={`data:image/png;base64,${pixResult.qr_code_base64}`} />}{pixResult.qr_code && <div className="mt-5 rounded-xl bg-muted p-3 text-left"><p className="break-all text-xs">{pixResult.qr_code}</p><Button className="mt-3 w-full" variant="outline" onClick={() => navigator.clipboard.writeText(pixResult.qr_code ?? "")}><Copy />Copiar código Pix</Button></div>}<Button render={<Link href={tracking} />} className="mt-5 w-full">Acompanhar pagamento e pedido</Button></CardContent></Card>;
@@ -210,7 +233,7 @@ export function CheckoutForm({ settings, mercadoPagoEnabled, mercadoPagoPublicKe
               <FieldError message={form.formState.errors.customer_phone?.message} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="customer_email">E-mail opcional</Label>
+              <Label htmlFor="customer_email">E-mail {paymentMethod === "CASH" ? "opcional" : "obrigatório"}</Label>
               <Input id="customer_email" type="email" autoComplete="email" {...form.register("customer_email")} aria-invalid={!!form.formState.errors.customer_email} />
               <FieldError message={form.formState.errors.customer_email?.message} />
             </div>
@@ -319,8 +342,11 @@ export function CheckoutForm({ settings, mercadoPagoEnabled, mercadoPagoPublicKe
             ))}
           </div>
           <Separator />
+          <div className="space-y-2"><Label htmlFor="coupon-code">Cupom de desconto</Label><div className="flex gap-2"><Input id="coupon-code" value={couponCode} onChange={(event) => { setCouponCode(event.target.value.toUpperCase()); setCoupon(null); }} placeholder="Digite o código" maxLength={30} /><Button type="button" variant="outline" onClick={applyCoupon} disabled={couponLoading || !couponCode.trim()}>{couponLoading && <LoaderCircle className="animate-spin" />}Aplicar</Button></div>{appliedCoupon && <p className="text-xs font-medium text-emerald-700">{appliedCoupon.name}: − {formatCurrency(appliedCoupon.discount_amount)}</p>}</div>
+          <Separator />
           <div className="flex justify-between text-sm"><span className="text-muted-foreground">Subtotal</span><span>{formatCurrency(subtotal)}</span></div>
           <div className="flex justify-between text-sm"><span className="text-muted-foreground">Taxa de entrega</span><span>{deliveryFee > 0 ? formatCurrency(deliveryFee) : "Grátis"}</span></div>
+          {discount > 0 && <div className="flex justify-between text-sm text-emerald-700"><span>Desconto {appliedCoupon?.code}</span><span>− {formatCurrency(discount)}</span></div>}
           <Separator />
           <div className="flex items-center justify-between text-lg"><strong>Total</strong><strong className="text-primary">{formatCurrency(total)}</strong></div>
 

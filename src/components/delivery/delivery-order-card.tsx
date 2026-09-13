@@ -187,7 +187,7 @@ export function DeliveryOrderCard({
               <CheckCircle2 aria-hidden="true" />
             )}
             {nextStatus === "OUT_FOR_DELIVERY"
-              ? "Assumir e sair para entrega"
+              ? "Iniciar rota de entrega"
               : "Marcar como entregue"}
           </Button>
         ) : (

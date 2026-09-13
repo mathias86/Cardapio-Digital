@@ -17,14 +17,14 @@ export function ProductCard({ onSelect, product }: ProductCardProps) {
   const isSoldOut = product.stock_quantity === 0;
 
   return (
-    <Card className="group/card h-full gap-0 py-0 shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-lg">
+    <Card className="group/card h-full min-w-0 gap-0 overflow-hidden py-0 shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-lg">
       <button
         type="button"
         onClick={() => onSelect(product)}
-        className="flex h-full cursor-pointer flex-col text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+        className="flex h-full w-full min-w-0 cursor-pointer flex-col overflow-hidden text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
         aria-label={`Ver detalhes de ${product.name}`}
       >
-        <div className="relative aspect-[16/10] w-full overflow-hidden bg-muted">
+        <div className="relative aspect-[16/10] w-full min-w-0 overflow-hidden bg-muted">
           <ProductImage imageUrl={product.image_url} name={product.name} />
           {isSoldOut && (
             <Badge variant="secondary" className="absolute left-3 top-3 shadow-sm">
@@ -34,7 +34,7 @@ export function ProductCard({ onSelect, product }: ProductCardProps) {
         </div>
         <CardContent className="flex flex-1 flex-col p-5">
           <div className="flex items-start justify-between gap-4">
-            <h3 className="text-lg font-bold tracking-tight">{product.name}</h3>
+            <h3 className="min-w-0 break-words text-lg font-bold tracking-tight">{product.name}</h3>
             <ArrowUpRight className="mt-0.5 size-4 shrink-0 text-muted-foreground transition group-hover/card:text-primary" aria-hidden="true" />
           </div>
           <p className="mt-2 line-clamp-2 min-h-10 text-sm leading-5 text-muted-foreground">
