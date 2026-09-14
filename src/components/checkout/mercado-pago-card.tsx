@@ -10,6 +10,6 @@ export function MercadoPagoCard({ amount, email, publicKey, onSubmit, onError }:
     locale="pt-BR"
     customization={{ paymentMethods: { maxInstallments: 12, types: { included: ["credit_card", "debit_card"] } } }}
     onSubmit={async (formData, additionalData) => onSubmit({ ...formData, payment_type_id: additionalData?.paymentTypeId })}
-    onError={(error) => onError(error.message ?? "Não foi possível carregar o formulário do cartão.")}
+    onError={(error) => onError(error instanceof Error && error.message ? error.message : "Não foi possível carregar o formulário do cartão. Atualize a página e tente novamente.")}
   />;
 }

@@ -51,7 +51,12 @@ export function CheckoutForm({ settings, mercadoPagoEnabled, mercadoPagoPublicKe
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [cardOrder, setCardOrder] = useState<{ order: CreatedOrder; email?: string } | null>(null);
   const [pendingOrder, setPendingOrder] = useState<CreatedOrder | null>(null);
-  const [pixResult, setPixResult] = useState<{ order: CreatedOrder; qr_code?: string; qr_code_base64?: string } | null>(null);
+  const [pixResult, setPixResult] = useState<{
+    order: CreatedOrder;
+    qr_code?: string;
+    qr_code_base64?: string;
+    ticket_url?: string;
+  } | null>(null);
   const [couponCode, setCouponCode] = useState("");
   const [coupon, setCoupon] = useState<(CouponValidation & { subtotal: number }) | null>(null);
   const [couponLoading, setCouponLoading] = useState(false);
@@ -90,10 +95,6 @@ export function CheckoutForm({ settings, mercadoPagoEnabled, mercadoPagoPublicKe
 
   if (!hydrated) {
     return <div className="min-h-[36rem] animate-pulse rounded-2xl border bg-card" />;
-  }
-
-  if (items.length === 0) {
-    return <CartEmpty />;
   }
 
   async function handleValidForm(values: CheckoutFormValues) {
@@ -197,12 +198,25 @@ export function CheckoutForm({ settings, mercadoPagoEnabled, mercadoPagoPublicKe
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ order_id: order.order_id, access_token: order.access_token, attempt_id: crypto.randomUUID() }),
     });
-    const payment = await response.json() as { error?: string; qr_code?: string; qr_code_base64?: string };
+    const payment = await response.json() as {
+      error?: string;
+      qr_code?: string;
+      qr_code_base64?: string;
+      ticket_url?: string;
+    };
     if (!response.ok) throw new Error(payment.error ?? "Não foi possível gerar o Pix.");
+    if (!payment.qr_code && !payment.qr_code_base64 && !payment.ticket_url) {
+      throw new Error("O Mercado Pago criou o pagamento, mas não devolveu os dados do Pix. Tente novamente.");
+    }
     clearCart();
     setPendingOrder(null);
     setCardOrder(null);
-    setPixResult({ order, qr_code: payment.qr_code, qr_code_base64: payment.qr_code_base64 });
+    setPixResult({
+      order,
+      qr_code: payment.qr_code,
+      qr_code_base64: payment.qr_code_base64,
+      ticket_url: payment.ticket_url,
+    });
   }
 
   async function switchCardPayment(method: "PIX" | "CASH") {
@@ -244,11 +258,15 @@ export function CheckoutForm({ settings, mercadoPagoEnabled, mercadoPagoPublicKe
 
   if (pixResult) {
     const tracking = `/pedido/acompanhar?token=${encodeURIComponent(pixResult.order.access_token)}`;
-    return <Card className="mx-auto max-w-xl"><CardContent className="py-8 text-center"><CheckCircle2 className="mx-auto size-12 text-primary" /><h2 className="mt-4 text-2xl font-bold">Pix do pedido #{pixResult.order.order_number}</h2><p className="mt-2 text-sm text-muted-foreground">Pague pelo QR Code ou copie o código. A confirmação é automática.</p>{pixResult.qr_code_base64 && <Image unoptimized width={256} height={256} className="mx-auto mt-6 size-64 rounded-xl border p-2" alt="QR Code Pix" src={`data:image/png;base64,${pixResult.qr_code_base64}`} />}{pixResult.qr_code && <div className="mt-5 rounded-xl bg-muted p-3 text-left"><p className="break-all text-xs">{pixResult.qr_code}</p><Button className="mt-3 w-full" variant="outline" onClick={() => navigator.clipboard.writeText(pixResult.qr_code ?? "")}><Copy />Copiar código Pix</Button></div>}<Button render={<Link href={tracking} />} className="mt-5 w-full">Acompanhar pagamento e pedido</Button></CardContent></Card>;
+    return <Card className="mx-auto max-w-xl"><CardContent className="py-8 text-center"><CheckCircle2 className="mx-auto size-12 text-primary" /><h2 className="mt-4 text-2xl font-bold">Pix do pedido #{pixResult.order.order_number}</h2><p className="mt-2 text-sm text-muted-foreground">Pague pelo QR Code ou copie o código. A confirmação é automática.</p>{pixResult.qr_code_base64 && <Image unoptimized width={256} height={256} className="mx-auto mt-6 size-64 rounded-xl border p-2" alt="QR Code Pix" src={`data:image/png;base64,${pixResult.qr_code_base64}`} />}{pixResult.qr_code && <div className="mt-5 rounded-xl bg-muted p-3 text-left"><p className="break-all text-xs">{pixResult.qr_code}</p><Button className="mt-3 w-full" variant="outline" onClick={() => navigator.clipboard.writeText(pixResult.qr_code ?? "")}><Copy />Copiar código Pix</Button></div>}{pixResult.ticket_url && <Button render={<a href={pixResult.ticket_url} target="_blank" rel="noreferrer" />} className="mt-3 w-full" variant="outline">Abrir página do Pix</Button>}<Button render={<Link href={tracking} />} className="mt-5 w-full">Acompanhar pagamento e pedido</Button></CardContent></Card>;
   }
 
   if (cardOrder && mercadoPagoPublicKey) {
-    return <Card className="mx-auto max-w-2xl"><CardHeader><CardTitle>Pagamento do pedido #{cardOrder.order.order_number}</CardTitle></CardHeader><CardContent><p className="mb-5 text-sm text-muted-foreground">Preencha os dados do cartão sem sair do site. Total: <strong className="text-foreground">{formatCurrency(cardOrder.order.total)}</strong></p>{mercadoPagoEnvironment === "TEST" && <p className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-900"><strong>Modo teste:</strong> para simular aprovação, use <strong>APRO</strong> no nome do titular e o CPF de teste <strong>12345678909</strong>.</p>}<MercadoPagoCard amount={cardOrder.order.total} email={cardOrder.email} publicKey={mercadoPagoPublicKey} onSubmit={submitCard} onError={setSubmissionError} />{submissionError && <p className="mt-4 rounded-xl bg-destructive/5 p-3 text-sm text-destructive">{submissionError}</p>}<div className="mt-6 border-t pt-5"><p className="mb-3 text-sm font-semibold">Mudou de ideia?</p><div className="grid gap-3 sm:grid-cols-2"><Button type="button" variant="outline" onClick={() => switchCardPayment("PIX")} disabled={switchingPayment}>{switchingPayment ? <LoaderCircle className="animate-spin" /> : <ArrowLeftRight />}Trocar para Pix</Button><Button type="button" variant="outline" onClick={() => switchCardPayment("CASH")} disabled={switchingPayment}><Store />Pagar em dinheiro</Button></div></div></CardContent></Card>;
+    return <Card className="mx-auto max-w-2xl"><CardHeader><CardTitle>Pagamento do pedido #{cardOrder.order.order_number}</CardTitle></CardHeader><CardContent><p className="mb-5 text-sm text-muted-foreground">Preencha os dados do cartão sem sair do site. Total: <strong className="text-foreground">{formatCurrency(cardOrder.order.total)}</strong></p>{mercadoPagoEnvironment === "TEST" && <p className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-900"><strong>Modo teste:</strong> para simular aprovação, use <strong>APRO</strong> no nome do titular e o CPF de teste <strong>12345678909</strong>.</p>}<MercadoPagoCard key={mercadoPagoPublicKey} amount={cardOrder.order.total} email={cardOrder.email} publicKey={mercadoPagoPublicKey} onSubmit={submitCard} onError={setSubmissionError} />{submissionError && <p className="mt-4 rounded-xl bg-destructive/5 p-3 text-sm text-destructive">{submissionError}</p>}<div className="mt-6 border-t pt-5"><p className="mb-3 text-sm font-semibold">Mudou de ideia?</p><div className="grid gap-3 sm:grid-cols-2"><Button type="button" variant="outline" onClick={() => switchCardPayment("PIX")} disabled={switchingPayment}>{switchingPayment ? <LoaderCircle className="animate-spin" /> : <ArrowLeftRight />}Trocar para Pix</Button><Button type="button" variant="outline" onClick={() => switchCardPayment("CASH")} disabled={switchingPayment}><Store />Pagar em dinheiro</Button></div></div></CardContent></Card>;
+  }
+
+  if (items.length === 0) {
+    return <CartEmpty />;
   }
 
   return (
