@@ -26,6 +26,7 @@ export const settingsFormSchema = z.object({
   logo_url: z.string().trim(),
   is_open: z.boolean(),
   delivery_fee: z.coerce.number().min(0),
+  delivery_price_per_km: z.coerce.number().min(0),
   minimum_order_value: z.coerce.number().min(0),
   phone: z.string().trim().max(30),
   whatsapp: z.string().trim().max(30),

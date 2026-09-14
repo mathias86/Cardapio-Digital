@@ -5,6 +5,7 @@ import type {
   CreatedOrder,
   CreateOrderPayload,
   OrderTrackingData,
+  PaymentMethod,
 } from "@/types/order";
 
 const databaseNumber = z
@@ -92,6 +93,15 @@ export async function createOrder(
   }
 
   return parsed.data[0] satisfies CreatedOrder;
+}
+
+export async function changePendingOrderPayment(order: CreatedOrder, method: PaymentMethod) {
+  const { error } = await createPublicSupabaseClient().rpc("change_pending_order_payment", {
+    p_order_id: order.order_id,
+    p_access_token: order.access_token,
+    p_method: method,
+  });
+  if (error) throw new Error(getPublicRpcError(error));
 }
 
 export async function getOrderByAccessToken(

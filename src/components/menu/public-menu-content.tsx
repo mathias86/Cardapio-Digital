@@ -57,7 +57,7 @@ export async function PublicMenuContent() {
               </span>
               <span className="flex items-center gap-2">
                 <Clock3 className="size-4 text-primary" aria-hidden="true" />
-                Taxa de entrega {formatCurrency(settings.delivery_fee)}
+                {settings.delivery_price_per_km > 0 ? `Entrega ${formatCurrency(settings.delivery_price_per_km)}/km` : `Taxa de entrega ${formatCurrency(settings.delivery_fee)}`}
               </span>
             </div>
           </div>

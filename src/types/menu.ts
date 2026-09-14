@@ -4,6 +4,8 @@ export type StoreSettings = {
   logo_url: string | null;
   is_open: boolean;
   delivery_fee: number;
+  delivery_price_per_km: number;
+  delivery_zones: Array<{ id: string; neighborhood: string; distance_km: number }>;
   minimum_order_value: number;
   phone: string | null;
   whatsapp: string | null;

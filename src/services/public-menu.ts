@@ -19,14 +19,14 @@ function toNumber(value: number | string) {
 export const getPublicMenuData = cache(async (): Promise<PublicMenuData> => {
   const supabase = createPublicSupabaseClient();
 
-  const [settingsResult, categoriesResult, productsResult, groupsResult, addonsResult, linksResult] = await Promise.all([
+  const [settingsResult, categoriesResult, productsResult, groupsResult, addonsResult, linksResult, zonesResult] = await Promise.all([
     supabase
       .from("store_settings")
       .select(
-        "id,name,logo_url,is_open,delivery_fee,minimum_order_value,phone,whatsapp,address",
+        "id,name,logo_url,is_open,delivery_fee,delivery_price_per_km,minimum_order_value,phone,whatsapp,address",
       )
       .eq("id", 1)
-      .maybeSingle<StoreSettings>(),
+      .maybeSingle<Omit<StoreSettings, "delivery_zones">>(),
     supabase
       .from("categories")
       .select("id,name,description,display_order")
@@ -46,10 +46,11 @@ export const getPublicMenuData = cache(async (): Promise<PublicMenuData> => {
     supabase.from("addon_groups").select("id,name,description,min_selections,max_selections,display_order").eq("active", true).order("display_order").returns<Array<Omit<MenuAddonGroup, "addons">>>(),
     supabase.from("addons").select("id,group_id,name,description,price,display_order").eq("active", true).order("display_order").returns<Array<MenuAddon & { group_id: string }>>(),
     supabase.from("product_addon_groups").select("product_id,addon_group_id,display_order").order("display_order").returns<Array<{ product_id: string; addon_group_id: string; display_order: number }>>(),
+    supabase.from("delivery_zones").select("id,neighborhood,distance_km").eq("active", true).order("neighborhood").returns<Array<{ id: string; neighborhood: string; distance_km: number | string }>>(),
   ]);
 
   const firstError =
-    settingsResult.error ?? categoriesResult.error ?? productsResult.error ?? groupsResult.error ?? addonsResult.error ?? linksResult.error;
+    settingsResult.error ?? categoriesResult.error ?? productsResult.error ?? groupsResult.error ?? addonsResult.error ?? linksResult.error ?? zonesResult.error;
 
   if (firstError) {
     throw new Error(`Falha ao carregar o cardápio: ${firstError.message}`);
@@ -92,6 +93,8 @@ export const getPublicMenuData = cache(async (): Promise<PublicMenuData> => {
     settings: {
       ...settingsResult.data,
       delivery_fee: toNumber(settingsResult.data.delivery_fee),
+      delivery_price_per_km: toNumber(settingsResult.data.delivery_price_per_km),
+      delivery_zones: (zonesResult.data ?? []).map((zone) => ({ ...zone, distance_km: toNumber(zone.distance_km) })),
       minimum_order_value: toNumber(
         settingsResult.data.minimum_order_value,
       ),

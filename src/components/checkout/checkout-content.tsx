@@ -21,5 +21,5 @@ export async function CheckoutContent() {
   }
 
   const paymentSettings = await getMercadoPagoPublicSettings().catch(() => null);
-  return <CheckoutForm settings={menuData.settings} mercadoPagoPublicKey={paymentSettings?.public_key ?? undefined} mercadoPagoEnabled={paymentSettings?.enabled ?? false} />;
+  return <CheckoutForm settings={menuData.settings} mercadoPagoPublicKey={paymentSettings?.public_key ?? undefined} mercadoPagoEnabled={paymentSettings?.enabled ?? false} mercadoPagoEnvironment={paymentSettings?.environment} />;
 }

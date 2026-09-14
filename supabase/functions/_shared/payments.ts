@@ -59,7 +59,12 @@ export async function mercadoPagoRequest(path: string, accessToken: string, init
   });
   const data = await response.json() as Record<string, unknown>;
   if (!response.ok) {
-    const message = typeof data.message === "string" ? data.message : "Pagamento recusado pelo Mercado Pago.";
+    const firstCause = Array.isArray(data.cause) ? data.cause[0] : undefined;
+    const cause = firstCause && typeof firstCause === "object"
+      ? Object.values(firstCause).find((item): item is string => typeof item === "string")
+      : undefined;
+    const base = typeof data.message === "string" ? data.message : typeof data.error === "string" ? data.error : "Pagamento recusado pelo Mercado Pago.";
+    const message = cause && cause !== base ? `${base}: ${cause}` : base;
     throw new Error(message);
   }
   return data;

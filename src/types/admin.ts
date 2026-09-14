@@ -36,6 +36,7 @@ export type AdminStoreSettings = {
   logo_url: string | null;
   is_open: boolean;
   delivery_fee: number;
+  delivery_price_per_km: number;
   minimum_order_value: number;
   opening_hours: Record<string, unknown>;
   phone: string | null;

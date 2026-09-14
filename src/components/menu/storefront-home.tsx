@@ -154,7 +154,7 @@ export async function StorefrontHome() {
             <div className="flex items-center gap-2">
               <Clock3 className="size-4 text-primary" aria-hidden="true" />
               Pedido mínimo {formatCurrency(settings.minimum_order_value)}
-              {settings.delivery_fee > 0 && ` · Entrega ${formatCurrency(settings.delivery_fee)}`}
+              {settings.delivery_price_per_km > 0 ? ` · Entrega ${formatCurrency(settings.delivery_price_per_km)}/km` : settings.delivery_fee > 0 && ` · Entrega ${formatCurrency(settings.delivery_fee)}`}
             </div>
           </div>
         </section>

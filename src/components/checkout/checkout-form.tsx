@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle, CheckCircle2, Copy, CreditCard, LoaderCircle, MapPin, ShoppingBag, Store, WalletCards } from "lucide-react";
+import { AlertCircle, ArrowLeftRight, CheckCircle2, Copy, CreditCard, LoaderCircle, MapPin, ShoppingBag, Store, WalletCards } from "lucide-react";
 import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 
@@ -20,7 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useCartHydrated } from "@/hooks/use-cart-hydrated";
 import { formatCurrency } from "@/lib/formatters/currency";
 import { createCheckoutSchema, type CheckoutFormValues } from "@/lib/validations/checkout";
-import { createOrder } from "@/services/orders";
+import { changePendingOrderPayment, createOrder } from "@/services/orders";
 import { validateCoupon, type CouponValidation } from "@/services/coupons";
 import { getCartSubtotal, useCartStore } from "@/stores/cart-store";
 import type { StoreSettings } from "@/types/menu";
@@ -30,6 +30,7 @@ type CheckoutFormProps = {
   settings: StoreSettings;
   mercadoPagoEnabled: boolean;
   mercadoPagoPublicKey?: string;
+  mercadoPagoEnvironment?: "TEST" | "PRODUCTION";
 };
 
 const paymentOptions = [
@@ -42,22 +43,21 @@ function FieldError({ message }: { message?: string }) {
   return message ? <p className="text-xs text-destructive">{message}</p> : null;
 }
 
-export function CheckoutForm({ settings, mercadoPagoEnabled, mercadoPagoPublicKey }: CheckoutFormProps) {
+export function CheckoutForm({ settings, mercadoPagoEnabled, mercadoPagoPublicKey, mercadoPagoEnvironment }: CheckoutFormProps) {
   const router = useRouter();
   const hydrated = useCartHydrated();
   const items = useCartStore((state) => state.items);
   const clearCart = useCartStore((state) => state.clearCart);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [cardOrder, setCardOrder] = useState<{ order: CreatedOrder; email?: string } | null>(null);
+  const [pendingOrder, setPendingOrder] = useState<CreatedOrder | null>(null);
   const [pixResult, setPixResult] = useState<{ order: CreatedOrder; qr_code?: string; qr_code_base64?: string } | null>(null);
   const [couponCode, setCouponCode] = useState("");
   const [coupon, setCoupon] = useState<(CouponValidation & { subtotal: number }) | null>(null);
   const [couponLoading, setCouponLoading] = useState(false);
+  const [switchingPayment, setSwitchingPayment] = useState(false);
   const subtotal = getCartSubtotal(items);
-  const schema = useMemo(
-    () => createCheckoutSchema(subtotal, settings.delivery_fee),
-    [settings.delivery_fee, subtotal],
-  );
+  const schema = useMemo(() => createCheckoutSchema(), []);
 
   const form = useForm<CheckoutFormValues>({
     resolver: zodResolver(schema),
@@ -79,7 +79,10 @@ export function CheckoutForm({ settings, mercadoPagoEnabled, mercadoPagoPublicKe
 
   const deliveryType = useWatch({ control: form.control, name: "delivery_type" });
   const paymentMethod = useWatch({ control: form.control, name: "payment_method" });
-  const deliveryFee = deliveryType === "DELIVERY" ? settings.delivery_fee : 0;
+  const neighborhood = useWatch({ control: form.control, name: "address_neighborhood" });
+  const deliveryByKm = settings.delivery_price_per_km > 0 && settings.delivery_zones.length > 0;
+  const selectedZone = deliveryByKm ? settings.delivery_zones.find((zone) => zone.neighborhood.toLocaleLowerCase("pt-BR") === neighborhood.trim().toLocaleLowerCase("pt-BR")) : undefined;
+  const deliveryFee = deliveryType === "DELIVERY" ? deliveryByKm ? selectedZone ? Math.round(selectedZone.distance_km * settings.delivery_price_per_km * 100) / 100 : 0 : settings.delivery_fee : 0;
   const appliedCoupon = coupon?.subtotal === subtotal ? coupon : null;
   const discount = appliedCoupon?.discount_amount ?? 0;
   const total = subtotal + deliveryFee - discount;
@@ -99,6 +102,9 @@ export function CheckoutForm({ settings, mercadoPagoEnabled, mercadoPagoPublicKe
     try {
       if (values.payment_method !== "CASH" && !mercadoPagoEnabled) {
         throw new Error("O pagamento online ainda não foi ativado pela loja. Escolha dinheiro ou tente mais tarde.");
+      }
+      if (values.payment_method === "CASH" && values.change_for && Number(values.change_for.replace(",", ".")) < total) {
+        throw new Error(`O troco deve ser para um valor igual ou maior que ${formatCurrency(total)}.`);
       }
       const payload: CreateOrderPayload = {
         customer_name: values.customer_name,
@@ -129,26 +135,24 @@ export function CheckoutForm({ settings, mercadoPagoEnabled, mercadoPagoPublicKe
           addon_ids: item.selectedAddons.map((addon) => addon.id),
         })),
       };
-      const order = await createOrder(payload);
+      const order = pendingOrder ?? await createOrder(payload);
+      if (pendingOrder) {
+        await changePendingOrderPayment(order, values.payment_method);
+      } else if (values.payment_method !== "CASH") {
+        setPendingOrder(order);
+      }
 
       if (values.payment_method === "CARD") {
         setCardOrder({ order, email: values.customer_email || undefined });
         return;
       }
       if (values.payment_method === "PIX") {
-        const response = await fetch("/api/mercado-pago/orders", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ order_id: order.order_id, access_token: order.access_token }),
-        });
-        const payment = await response.json() as { error?: string; qr_code?: string; qr_code_base64?: string };
-        if (!response.ok) throw new Error(payment.error ?? "Não foi possível gerar o Pix.");
-        clearCart();
-        setPixResult({ order, qr_code: payment.qr_code, qr_code_base64: payment.qr_code_base64 });
+        await startPix(order);
         return;
       }
 
       clearCart();
+      setPendingOrder(null);
       toast.success(`Pedido #${order.order_number} confirmado.`);
 
       const query = new URLSearchParams({
@@ -172,7 +176,7 @@ export function CheckoutForm({ settings, mercadoPagoEnabled, mercadoPagoPublicKe
     const response = await fetch("/api/mercado-pago/orders", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ order_id: cardOrder.order.order_id, access_token: cardOrder.order.access_token, payment_data: paymentData }),
+      body: JSON.stringify({ order_id: cardOrder.order.order_id, access_token: cardOrder.order.access_token, attempt_id: crypto.randomUUID(), payment_data: paymentData }),
     });
     const result = await response.json() as { error?: string; payment_status?: string };
     if (!response.ok) {
@@ -181,9 +185,45 @@ export function CheckoutForm({ settings, mercadoPagoEnabled, mercadoPagoPublicKe
       throw new Error(message);
     }
     clearCart();
+    setPendingOrder(null);
     toast.success(result.payment_status === "PAID" ? "Pagamento aprovado." : "Pagamento em processamento.");
     const query = new URLSearchParams({ token: cardOrder.order.access_token, numero: String(cardOrder.order.order_number) });
     router.replace(`/pedido/sucesso?${query.toString()}`);
+  }
+
+  async function startPix(order: CreatedOrder) {
+    const response = await fetch("/api/mercado-pago/orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ order_id: order.order_id, access_token: order.access_token, attempt_id: crypto.randomUUID() }),
+    });
+    const payment = await response.json() as { error?: string; qr_code?: string; qr_code_base64?: string };
+    if (!response.ok) throw new Error(payment.error ?? "Não foi possível gerar o Pix.");
+    clearCart();
+    setPendingOrder(null);
+    setCardOrder(null);
+    setPixResult({ order, qr_code: payment.qr_code, qr_code_base64: payment.qr_code_base64 });
+  }
+
+  async function switchCardPayment(method: "PIX" | "CASH") {
+    if (!cardOrder) return;
+    setSwitchingPayment(true);
+    setSubmissionError(null);
+    try {
+      await changePendingOrderPayment(cardOrder.order, method);
+      if (method === "PIX") {
+        await startPix(cardOrder.order);
+        return;
+      }
+      clearCart();
+      setPendingOrder(null);
+      const query = new URLSearchParams({ token: cardOrder.order.access_token, numero: String(cardOrder.order.order_number) });
+      router.replace(`/pedido/sucesso?${query.toString()}`);
+    } catch (error) {
+      setSubmissionError(error instanceof Error ? error.message : "Não foi possível alterar a forma de pagamento.");
+    } finally {
+      setSwitchingPayment(false);
+    }
   }
 
   async function applyCoupon() {
@@ -208,7 +248,7 @@ export function CheckoutForm({ settings, mercadoPagoEnabled, mercadoPagoPublicKe
   }
 
   if (cardOrder && mercadoPagoPublicKey) {
-    return <Card className="mx-auto max-w-2xl"><CardHeader><CardTitle>Pagamento do pedido #{cardOrder.order.order_number}</CardTitle></CardHeader><CardContent><p className="mb-5 text-sm text-muted-foreground">Preencha os dados do cartão sem sair do site. Total: <strong className="text-foreground">{formatCurrency(cardOrder.order.total)}</strong></p><MercadoPagoCard amount={cardOrder.order.total} email={cardOrder.email} publicKey={mercadoPagoPublicKey} onSubmit={submitCard} onError={setSubmissionError} />{submissionError && <p className="mt-4 rounded-xl bg-destructive/5 p-3 text-sm text-destructive">{submissionError}</p>}</CardContent></Card>;
+    return <Card className="mx-auto max-w-2xl"><CardHeader><CardTitle>Pagamento do pedido #{cardOrder.order.order_number}</CardTitle></CardHeader><CardContent><p className="mb-5 text-sm text-muted-foreground">Preencha os dados do cartão sem sair do site. Total: <strong className="text-foreground">{formatCurrency(cardOrder.order.total)}</strong></p>{mercadoPagoEnvironment === "TEST" && <p className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-900"><strong>Modo teste:</strong> para simular aprovação, use <strong>APRO</strong> no nome do titular e o CPF de teste <strong>12345678909</strong>.</p>}<MercadoPagoCard amount={cardOrder.order.total} email={cardOrder.email} publicKey={mercadoPagoPublicKey} onSubmit={submitCard} onError={setSubmissionError} />{submissionError && <p className="mt-4 rounded-xl bg-destructive/5 p-3 text-sm text-destructive">{submissionError}</p>}<div className="mt-6 border-t pt-5"><p className="mb-3 text-sm font-semibold">Mudou de ideia?</p><div className="grid gap-3 sm:grid-cols-2"><Button type="button" variant="outline" onClick={() => switchCardPayment("PIX")} disabled={switchingPayment}>{switchingPayment ? <LoaderCircle className="animate-spin" /> : <ArrowLeftRight />}Trocar para Pix</Button><Button type="button" variant="outline" onClick={() => switchCardPayment("CASH")} disabled={switchingPayment}><Store />Pagar em dinheiro</Button></div></div></CardContent></Card>;
   }
 
   return (
@@ -273,8 +313,9 @@ export function CheckoutForm({ settings, mercadoPagoEnabled, mercadoPagoPublicKe
                 </div>
                 <div className="space-y-2 sm:col-span-2">
                   <Label htmlFor="address_neighborhood">Bairro</Label>
-                  <Input id="address_neighborhood" autoComplete="address-level3" {...form.register("address_neighborhood")} aria-invalid={!!form.formState.errors.address_neighborhood} />
+                  {deliveryByKm ? <select id="address_neighborhood" className="h-9 w-full rounded-lg border bg-transparent px-3 text-sm" {...form.register("address_neighborhood")} aria-invalid={!!form.formState.errors.address_neighborhood}><option value="">Selecione seu bairro...</option>{settings.delivery_zones.map((zone) => <option key={zone.id} value={zone.neighborhood}>{zone.neighborhood} · {zone.distance_km.toLocaleString("pt-BR")} km</option>)}</select> : <Input id="address_neighborhood" autoComplete="address-level3" {...form.register("address_neighborhood")} aria-invalid={!!form.formState.errors.address_neighborhood} />}
                   <FieldError message={form.formState.errors.address_neighborhood?.message} />
+                  {selectedZone && <p className="text-xs text-muted-foreground">Frete: {selectedZone.distance_km.toLocaleString("pt-BR")} km × {formatCurrency(settings.delivery_price_per_km)} = {formatCurrency(deliveryFee)}</p>}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="address_complement">Complemento</Label>
@@ -345,7 +386,7 @@ export function CheckoutForm({ settings, mercadoPagoEnabled, mercadoPagoPublicKe
           <div className="space-y-2"><Label htmlFor="coupon-code">Cupom de desconto</Label><div className="flex gap-2"><Input id="coupon-code" value={couponCode} onChange={(event) => { setCouponCode(event.target.value.toUpperCase()); setCoupon(null); }} placeholder="Digite o código" maxLength={30} /><Button type="button" variant="outline" onClick={applyCoupon} disabled={couponLoading || !couponCode.trim()}>{couponLoading && <LoaderCircle className="animate-spin" />}Aplicar</Button></div>{appliedCoupon && <p className="text-xs font-medium text-emerald-700">{appliedCoupon.name}: − {formatCurrency(appliedCoupon.discount_amount)}</p>}</div>
           <Separator />
           <div className="flex justify-between text-sm"><span className="text-muted-foreground">Subtotal</span><span>{formatCurrency(subtotal)}</span></div>
-          <div className="flex justify-between text-sm"><span className="text-muted-foreground">Taxa de entrega</span><span>{deliveryFee > 0 ? formatCurrency(deliveryFee) : "Grátis"}</span></div>
+          <div className="flex justify-between gap-4 text-sm"><span className="text-muted-foreground">Taxa de entrega</span><span className="text-right">{deliveryType === "DELIVERY" && deliveryByKm && !selectedZone ? "Selecione o bairro" : deliveryFee > 0 ? formatCurrency(deliveryFee) : "Grátis"}</span></div>
           {discount > 0 && <div className="flex justify-between text-sm text-emerald-700"><span>Desconto {appliedCoupon?.code}</span><span>− {formatCurrency(discount)}</span></div>}
           <Separator />
           <div className="flex items-center justify-between text-lg"><strong>Total</strong><strong className="text-primary">{formatCurrency(total)}</strong></div>

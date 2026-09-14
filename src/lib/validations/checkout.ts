@@ -2,7 +2,7 @@ import { z } from "zod";
 
 const optionalText = (maximum: number) => z.string().trim().max(maximum);
 
-export function createCheckoutSchema(subtotal: number, deliveryFee: number) {
+export function createCheckoutSchema() {
   return z
     .object({
       customer_name: z.string().trim().min(2, "Informe seu nome.").max(120),
@@ -45,14 +45,12 @@ export function createCheckoutSchema(subtotal: number, deliveryFee: number) {
       }
 
       if (data.payment_method === "CASH" && data.change_for) {
-        const total =
-          subtotal + (data.delivery_type === "DELIVERY" ? deliveryFee : 0);
         const changeFor = Number(data.change_for.replace(",", "."));
-        if (!Number.isFinite(changeFor) || changeFor < total) {
+        if (!Number.isFinite(changeFor) || changeFor <= 0) {
           context.addIssue({
             code: "custom",
             path: ["change_for"],
-            message: `O troco deve ser para um valor igual ou maior que ${total.toFixed(2).replace(".", ",")}.`,
+            message: "Informe um valor válido para o troco.",
           });
         }
       }

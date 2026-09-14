@@ -7,7 +7,7 @@ import type { AdminAddonGroup, AdminCategory, AdminDashboardData, AdminProduct, 
 const databaseNumber = z.union([z.number(), z.string()]).transform(Number);
 const categorySchema = z.object({ id: z.uuid(), name: z.string(), description: z.string().nullable(), active: z.boolean(), display_order: z.number(), created_at: z.string() });
 const productSchema = z.object({ id: z.uuid(), category_id: z.uuid(), name: z.string(), description: z.string().nullable(), price: databaseNumber, image_url: z.string().nullable(), active: z.boolean(), stock_quantity: z.number().nullable(), low_stock_threshold: z.number().nullable(), display_order: z.number(), created_at: z.string() });
-const settingsSchema = z.object({ id: z.number(), name: z.string(), logo_url: z.string().nullable(), is_open: z.boolean(), delivery_fee: databaseNumber, minimum_order_value: databaseNumber, opening_hours: z.record(z.string(), z.unknown()), phone: z.string().nullable(), whatsapp: z.string().nullable(), address: z.string().nullable(), pix_key: z.string().nullable(), pix_name: z.string().nullable() });
+const settingsSchema = z.object({ id: z.number(), name: z.string(), logo_url: z.string().nullable(), is_open: z.boolean(), delivery_fee: databaseNumber, delivery_price_per_km: databaseNumber, minimum_order_value: databaseNumber, opening_hours: z.record(z.string(), z.unknown()), phone: z.string().nullable(), whatsapp: z.string().nullable(), address: z.string().nullable(), pix_key: z.string().nullable(), pix_name: z.string().nullable() });
 const recentOrderSchema = z.object({ id: z.uuid(), order_number: databaseNumber, customer_name: z.string(), status: z.enum(["PENDING", "CONFIRMED", "PREPARING", "READY", "OUT_FOR_DELIVERY", "DELIVERED", "CANCELED"]), total: databaseNumber, created_at: z.string() });
 
 function adminError(error: { code?: string; message: string }) {
@@ -121,7 +121,7 @@ export async function deleteAdminAddon(id: string) {
 }
 
 export async function getAdminSettings(): Promise<AdminStoreSettings> {
-  const { data, error } = await createSupabaseBrowserClient().from("store_settings").select("id,name,logo_url,is_open,delivery_fee,minimum_order_value,opening_hours,phone,whatsapp,address,pix_key,pix_name").eq("id", 1).single();
+  const { data, error } = await createSupabaseBrowserClient().from("store_settings").select("id,name,logo_url,is_open,delivery_fee,delivery_price_per_km,minimum_order_value,opening_hours,phone,whatsapp,address,pix_key,pix_name").eq("id", 1).single();
   if (error) throw adminError(error);
   const parsed = settingsSchema.safeParse(data);
   if (!parsed.success) throw new Error("Resposta de configurações inválida.");
@@ -129,7 +129,7 @@ export async function getAdminSettings(): Promise<AdminStoreSettings> {
 }
 
 export async function saveAdminSettings(values: SettingsFormValues) {
-  const payload = { name: values.name.trim(), logo_url: nullableText(values.logo_url), is_open: values.is_open, delivery_fee: values.delivery_fee, minimum_order_value: values.minimum_order_value, phone: nullableText(values.phone), whatsapp: nullableText(values.whatsapp), address: nullableText(values.address), pix_key: nullableText(values.pix_key), pix_name: nullableText(values.pix_name) };
+  const payload = { name: values.name.trim(), logo_url: nullableText(values.logo_url), is_open: values.is_open, delivery_fee: values.delivery_fee, delivery_price_per_km: values.delivery_price_per_km, minimum_order_value: values.minimum_order_value, phone: nullableText(values.phone), whatsapp: nullableText(values.whatsapp), address: nullableText(values.address), pix_key: nullableText(values.pix_key), pix_name: nullableText(values.pix_name) };
   const { error } = await createSupabaseBrowserClient().from("store_settings").update(payload).eq("id", 1);
   if (error) throw adminError(error);
 }
